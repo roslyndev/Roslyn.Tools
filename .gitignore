@@ -3,5 +3,5 @@
 ################################################################################
 
 /.vs
-/Roslyn.Tools.CompareFiles/bin/Debug/net8.0
+/Roslyn.Tools.CompareFiles/bin
 /Roslyn.Tools.CompareFiles/obj
