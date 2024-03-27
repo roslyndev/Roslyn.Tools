@@ -158,16 +158,25 @@ class Program
         }
         else
         {
-            var list1 = txt1.Split(Environment.NewLine);
-            var list2 = txt2.Split(Environment.NewLine);
+            var list1 = txt1.Replace("\n", Environment.NewLine).Split(Environment.NewLine);
+            var list2 = txt2.Replace("\n", Environment.NewLine).Split(Environment.NewLine);
+
             int end = Math.Min(list1.Count(), list2.Count());
             int chk = 0;
+            string line1 = string.Empty;
+            string line2 = string.Empty;
             for (int i = 0; i < end; i++)
             {
-                if (!list1[i].StartsWith("//") && !list1[i].Equals(list2[i], StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(list1[i]) && !list1[i].StartsWith("//") && !list1[i].StartsWith("namespace"))
                 {
-                    list.Add($"{i} line : {list1[i]}");
-                    chk++;
+                    line1 = list1[i].Trim();
+                    line2 = list2[i].Trim();
+
+                    if (!line1.Equals(line2, StringComparison.OrdinalIgnoreCase))
+                    {
+                        list.Add($"{i} line : {line1}");
+                        chk++;
+                    }
                 }
             }
 
