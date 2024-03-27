@@ -12,4 +12,8 @@
     <Exec Command="xcopy .\bin\debug\net8.0\*.* c:\roslyn /D /Y" />
   </Target>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" />
+  </ItemGroup>
+
 </Project>

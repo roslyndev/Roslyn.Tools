@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 class Program
 {
     static void Main(string[] args)
@@ -158,29 +160,19 @@ class Program
         }
         else
         {
-            var list1 = txt1.Replace("\n", Environment.NewLine).Split(Environment.NewLine);
-            var list2 = txt2.Replace("\n", Environment.NewLine).Split(Environment.NewLine);
-
-            int end = Math.Min(list1.Count(), list2.Count());
-            int chk = 0;
-            string line1 = string.Empty;
-            string line2 = string.Empty;
-            for (int i = 0; i < end; i++)
+            var compare = new CompareCsharp(txt1, txt2);
+            if (compare.IsEquals())
             {
-                if (!string.IsNullOrWhiteSpace(list1[i]) && !list1[i].StartsWith("//") && !list1[i].StartsWith("namespace"))
-                {
-                    line1 = list1[i].Trim();
-                    line2 = list2[i].Trim();
-
-                    if (!line1.Equals(line2, StringComparison.OrdinalIgnoreCase))
-                    {
-                        list.Add($"{i} line : {line1}");
-                        chk++;
-                    }
-                }
+                return true;
             }
-
-            return !(chk > 0);
+            else
+            {
+                foreach(var item in compare.FindDifferences())
+                {
+                    list.Add($"{item.Key} line : {item.Value}");
+                }
+                return false;
+            }
         }
     }
 }
@@ -221,5 +213,61 @@ public static class CompareConvert
         }
 
         return result;
+    }
+}
+
+public class CompareCsharp
+{
+    private string Origin = string.Empty;
+    private string Target = string.Empty;
+
+    public SyntaxTree OriginTree { get; set; }
+    public SyntaxTree TargetTree { get; set; }
+
+    public IEnumerable<SyntaxNode> OriginRoot { get; set; }
+    public IEnumerable<SyntaxNode> TargetRoot { get; set; }
+
+    public CompareCsharp()
+    {
+    }
+
+    public CompareCsharp(string origin, string target)
+    {
+        this.Origin = origin;
+        this.Target = target;
+
+        if (!string.IsNullOrWhiteSpace(this.Origin) && !string.IsNullOrWhiteSpace(this.Target))
+        {
+            this.OriginTree = CSharpSyntaxTree.ParseText(this.Origin);
+            this.TargetTree = CSharpSyntaxTree.ParseText(this.Target);
+
+            this.OriginRoot = this.OriginTree.GetRoot().DescendantNodesAndSelf().Where(n => !(n is UsingDirectiveSyntax) && !(n is NamespaceDeclarationSyntax));
+            this.TargetRoot = this.TargetTree.GetRoot().DescendantNodesAndSelf().Where(n => !(n is UsingDirectiveSyntax) && !(n is NamespaceDeclarationSyntax));
+        }
+    }
+
+    public bool IsEquals()
+    {
+        return OriginTree.GetRoot().IsEquivalentTo(TargetTree.GetRoot());
+    }
+
+    public Dictionary<int, string> FindDifferences()
+    {
+        var differences = new Dictionary<int, string>();
+        var originRoot = this.OriginTree.GetRoot();
+        var targetRoot = this.TargetTree.GetRoot();
+        var originNodes = originRoot.DescendantNodesAndSelf();
+        var targetNodes = targetRoot.DescendantNodesAndSelf();
+        int end = Math.Min(originNodes.Count(), targetNodes.Count());
+
+        for (int i = 0; i < end; i++)
+        {
+            if (!originNodes.ElementAt(i).ToString().Equals(targetNodes.ElementAt(i).ToString(), StringComparison.OrdinalIgnoreCase) && !originNodes.ElementAt(i).IsEquivalentTo(targetNodes.ElementAt(i)))
+            {
+                differences.Add(i, $"Difference found: '{originNodes.ElementAt(i)}' vs '{targetNodes.ElementAt(i)}'");
+            }
+        }
+
+        return differences;
     }
 }
