@@ -6,12 +6,13 @@ class Program
 {
     static void Main(string[] args)
     {
-        //Compare -s --origin D:\Projects\Origin --target D:\Projects\Target --output console
+        //Compare -s --origin D:\Projects\Origin --target D:\Projects\Target --output console -d
 
         string originFolder = string.Empty;
         string targetFolder = string.Empty;
         bool subfolders = false;
         string outputOption = string.Empty;
+        bool isDetail = false;
 
         if (true)
         {
@@ -43,6 +44,10 @@ class Program
                     outputOption = args[i + 1];
                     i++;
                 }
+                else if (args[i] == "-d" || args[i] == "-D")
+                {
+                    isDetail = true;
+                }
             }
         }
         else
@@ -51,6 +56,7 @@ class Program
             targetFolder = "D:\\Projects\\iCloudHospital\\Net8Identity\\src\\Net8Identity.Admin.Api";
             subfolders = true;
             outputOption = "console";
+            isDetail = true;
         }
 
         if (string.IsNullOrEmpty(originFolder) || string.IsNullOrEmpty(targetFolder))
@@ -59,7 +65,7 @@ class Program
             return;
         }
 
-        List<string> differences = CompareFolders(originFolder, targetFolder, subfolders);
+        List<CompareItem> differences = CompareFolders(originFolder, targetFolder, subfolders);
 
         if (outputOption.Equals("console", StringComparison.OrdinalIgnoreCase))
         {
@@ -68,7 +74,14 @@ class Program
                 int num = 1;
                 foreach (var diff in differences)
                 {
-                    Console.WriteLine($"{num++}) {diff}");
+                    Console.WriteLine($"{num++}) {diff.file}");
+                    if (isDetail && diff.rows != null && diff.rows.Count > 0)
+                    {
+                        foreach(string row in diff.rows)
+                        {
+                            Console.WriteLine($"\t => {row}");
+                        }
+                    }
                 }
             }
             else
@@ -78,7 +91,7 @@ class Program
         }
         else if (outputOption.Equals("file", StringComparison.OrdinalIgnoreCase))
         {
-            File.WriteAllLines("compare.txt", differences);
+            File.WriteAllLines("compare.txt", differences.ToCompareList());
             Console.WriteLine("Differences written to compare.txt");
         }
         else
@@ -87,9 +100,9 @@ class Program
         }
     }
 
-    static List<string> CompareFolders(string originFolder, string targetFolder, bool includeSubfolders)
+    static List<CompareItem> CompareFolders(string originFolder, string targetFolder, bool includeSubfolders)
     {
-        List<string> differences = new List<string>();
+        List<CompareItem> differences = new List<CompareItem>();
 
         var originFiles = GetFiles(originFolder, includeSubfolders);
         var targetFiles = GetFiles(targetFolder, includeSubfolders);
@@ -97,17 +110,18 @@ class Program
         foreach (var originFile in originFiles)
         {
             string relativePath = originFile.Substring(originFolder.Length);
+            List<string> diff = new List<string>();
 
             if (targetFiles.Contains(targetFolder + relativePath))
             {
-                if (!FileEquals(originFile, targetFolder + relativePath))
+                if (!FileEquals(originFile, targetFolder + relativePath, out diff))
                 {
-                    differences.Add($"File '{relativePath}' is different.");
+                    differences.Add(new CompareItem($"File '{relativePath}' is different.", diff));
                 }
             }
             else
             {
-                differences.Add($"File '{relativePath}' exists in origin but not in target.");
+                differences.Add(new CompareItem($"File '{relativePath}' exists in origin but not in target.", new List<string>()));
             }
         }
 
@@ -117,7 +131,7 @@ class Program
 
             if (!originFiles.Contains(originFolder + relativePath))
             {
-                differences.Add($"File '{relativePath}' exists in target but not in origin.");
+                differences.Add(new CompareItem($"File '{relativePath}' exists in target but not in origin.", new List<string>()));
             }
         }
 
@@ -132,8 +146,71 @@ class Program
         return new List<string>(files);
     }
 
-    static bool FileEquals(string file1, string file2)
+    static bool FileEquals(string file1, string file2, out List<string> list)
     {
-        return File.ReadAllText(file1).Equals(File.ReadAllText(file2), StringComparison.OrdinalIgnoreCase);
+        list = new List<string>();
+        var txt1 = File.ReadAllText(file1);
+        var txt2 = File.ReadAllText(file2);
+
+        if (txt1.Equals(txt2, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        else
+        {
+            var list1 = txt1.Split(Environment.NewLine);
+            var list2 = txt2.Split(Environment.NewLine);
+            int end = Math.Min(list1.Count(), list2.Count());
+            int chk = 0;
+            for (int i = 0; i < end; i++)
+            {
+                if (!list1[i].StartsWith("//") && !list1[i].Equals(list2[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    list.Add($"{i} line : {list1[i]}");
+                    chk++;
+                }
+            }
+
+            return !(chk > 0);
+        }
+    }
+}
+
+public class CompareItem
+{
+    public string file { get; set; } = string.Empty;
+
+    public List<string> rows { get; set; } = new List<string>();
+
+    public CompareItem()
+    {
+        this.file = string.Empty;
+        this.rows = new List<string>();
+    }
+
+    public CompareItem(string _file)
+    {
+        this.file = _file;
+        this.rows = new List<string>();
+    }
+
+    public CompareItem(string file, List<string> rows) : this(file)
+    {
+        this.rows = rows;
+    }
+}
+
+public static class CompareConvert
+{
+    public static List<string> ToCompareList(this List<CompareItem> list)
+    {
+        var result = new List<string>();
+        foreach(var item in list)
+        {
+            result.Add(item.file);
+            result.AddRange(item.rows);
+        }
+
+        return result;
     }
 }
